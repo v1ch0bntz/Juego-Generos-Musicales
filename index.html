@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El sonido de los géneros musicales</title>
+<style>
+  :root{
+    --bg:#0f0c29; --bg2:#302b63; --bg3:#24243e;
+    --card:#1e1b3a; --txt:#f2f2ff; --muted:#a9a4d0;
+    --ok:#2ecc71; --bad:#ff4757; --acc:#ffd166;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh; font-family:"Trebuchet MS",system-ui,sans-serif;
+    color:var(--txt);
+    background:linear-gradient(135deg,var(--bg),var(--bg2),var(--bg3));
+    background-attachment:fixed;
+    padding:24px;
+  }
+  h1{text-align:center;margin:0 0 4px;font-size:clamp(22px,4vw,38px)}
+  .sub{text-align:center;color:var(--muted);margin:0 0 20px}
+
+  .tabs{display:flex;gap:10px;justify-content:center;margin-bottom:22px;flex-wrap:wrap}
+  .tab{
+    background:rgba(255,255,255,.08); color:var(--txt); border:2px solid transparent;
+    padding:12px 22px; border-radius:999px; font-size:16px; cursor:pointer; transition:.2s;
+  }
+  .tab:hover{background:rgba(255,255,255,.16)}
+  .tab.activo{background:var(--acc); color:#26224a; font-weight:bold}
+
+  .panel{display:none; max-width:1000px; margin:0 auto}
+  .panel.activo{display:block}
+
+  .grid{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:14px; margin-top:16px;
+  }
+  .carta{
+    background:var(--card); border:3px solid rgba(255,255,255,.12); border-radius:18px;
+    padding:14px 10px; text-align:center; cursor:pointer; transition:transform .15s, border-color .2s;
+    position:relative; overflow:hidden;
+  }
+  .carta:hover{transform:translateY(-5px); border-color:var(--acc)}
+  .carta img{width:100%; height:110px; object-fit:cover; border-radius:12px; display:block}
+  .carta .emoji{font-size:56px; height:110px; display:flex; align-items:center; justify-content:center}
+  .carta .nombre{margin-top:10px; font-size:16px; font-weight:bold}
+  .carta.correcta{border-color:var(--ok); box-shadow:0 0 22px var(--ok)}
+  .carta.incorrecta{border-color:var(--bad); box-shadow:0 0 22px var(--bad)}
+  .carta.sonando{border-color:var(--acc); box-shadow:0 0 22px var(--acc)}
+  .carta:disabled,.grid.bloqueada .carta{cursor:not-allowed}
+
+  .caja{
+    background:rgba(0,0,0,.28); border-radius:18px; padding:18px; text-align:center;
+  }
+  .btn{
+    background:var(--acc); color:#26224a; border:0; border-radius:12px;
+    padding:14px 28px; font-size:17px; font-weight:bold; cursor:pointer;
+  }
+  .btn:hover{filter:brightness(1.1)}
+  .btn.sec{background:rgba(255,255,255,.15); color:var(--txt)}
+
+  .barra{height:14px; background:rgba(255,255,255,.12); border-radius:999px; overflow:hidden; margin:14px 0}
+  .barra > i{display:block; height:100%; width:100%; background:var(--ok); transition:width .1s linear}
+  .reloj{font-size:42px; font-weight:bold; letter-spacing:1px}
+  .marcador{display:flex; gap:26px; justify-content:center; color:var(--muted); margin-top:10px}
+  .marcador b{color:var(--txt); font-size:20px}
+  .mensaje{min-height:30px; font-size:20px; font-weight:bold; margin-top:10px}
+  .mensaje.ok{color:var(--ok)} .mensaje.bad{color:var(--bad)}
+  .nota{max-width:1000px;margin:26px auto 0;color:var(--muted);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+
+<h1>🎧 El sonido de los géneros musicales</h1>
+<p class="sub">Aprendé a reconocer 8 géneros y después poné a prueba tu oído</p>
+
+<div class="tabs">
+  <button class="tab activo" data-panel="entrenamiento">1 · Entrenamiento</button>
+  <button class="tab" data-panel="juego">2 · Juego contrarreloj</button>
+</div>
+
+<!-- ====================== MODO 1: ENTRENAMIENTO ====================== -->
+<section id="entrenamiento" class="panel activo">
+  <div class="caja">
+    <strong>Hacé clic en cualquier tarjeta para escuchar ese género.</strong>
+    <div style="color:var(--muted);font-size:14px;margin-top:6px">Escuchá todos varias veces antes de pasar al juego.</div>
+  </div>
+  <div class="grid" id="gridEntrenamiento"></div>
+</section>
+
+<!-- ====================== MODO 2: JUEGO ====================== -->
+<section id="juego" class="panel">
+  <div class="caja">
+    <div class="reloj" id="reloj">10</div>
+    <div class="barra"><i id="barra"></i></div>
+    <button class="btn" id="btnJugar">▶ Empezar ronda</button>
+    <button class="btn sec" id="btnRepetir" disabled>🔁 Repetir audio</button>
+    <div class="mensaje" id="mensaje"></div>
+    <div class="marcador">
+      <span>Aciertos: <b id="aciertos">0</b></span>
+      <span>Errores: <b id="errores">0</b></span>
+      <span>Rondas: <b id="rondas">0</b></span>
+    </div>
+  </div>
+  <div class="grid" id="gridJuego"></div>
+</section>
+
+<p class="nota">Poné tus MP3 en la carpeta <code>audio/</code> y tus imágenes en <code>img/</code> con los nombres indicados en el README.</p>
+
+<script>
+/* =====================================================================
+   1) LOS 8 GÉNEROS
+   El campo "id" define el nombre del archivo: audio/<id>.mp3  e  img/<id>.jpg
+   Si tu MP3 se llama distinto, agregale el campo "audio" a ese género.
+   Ej:  { id:"cumbia", nombre:"Cumbia", emoji:"🪗", audio:"audio/mi-cumbia.mp3" }
+   ===================================================================== */
+const GENEROS = [
+  { id:"reggaeton",  nombre:"Reggaetón",          emoji:"🔥" },
+  { id:"trap",       nombre:"Trap Latino",         emoji:"💎" },
+  { id:"corridos",   nombre:"Corridos Tumbados",   emoji:"🤠" },
+  { id:"cumbia",     nombre:"Cumbia",              emoji:"🪗" },
+  { id:"bachata",    nombre:"Bachata",             emoji:"💃" },
+  { id:"salsa",      nombre:"Salsa",               emoji:"🎺" },
+  { id:"dembow",     nombre:"Dembow",              emoji:"🥁" },
+  { id:"electronica",nombre:"Electrónica / EDM",   emoji:"🎛️" }
+];
+
+/* =====================================================================
+   2) AUDIO
+   Cada género carga audio/<id>.mp3. Si el archivo todavía no existe,
+   suena un tono de prueba para que puedas probar el programa igual.
+   ===================================================================== */
+const RUTA_AUDIO = "audio/";
+const pistas = {};
+
+GENEROS.forEach(g => {
+  const ruta = g.audio || (RUTA_AUDIO + g.id + ".mp3");   // usa g.audio si existe
+  const a = new Audio(ruta);
+  a.preload = "auto";
+  pistas[g.id] = a;
+});
+
+const sonidoOk  = new Audio(RUTA_AUDIO + "correcto.mp3");
+const sonidoBad = new Audio(RUTA_AUDIO + "incorrecto.mp3");
+
+let audioActual = null;
+
+function detenerTodo(){
+  Object.values(pistas).forEach(a => { a.pause(); a.currentTime = 0; });
+  document.querySelectorAll(".carta.sonando").forEach(c => c.classList.remove("sonando"));
+}
+
+function reproducirGenero(id, carta){
+  detenerTodo();
+  const a = pistas[id];
+  audioActual = a;
+  if (carta) carta.classList.add("sonando");
+  a.currentTime = 0;
+  a.play().catch(() => tonoDePrueba(id));   // si falta el mp3, tono de respaldo
+  a.onended = () => { if (carta) carta.classList.remove("sonando"); };
+}
+
+function reproducirFeedback(ok){
+  const a = ok ? sonidoOk : sonidoBad;
+  a.currentTime = 0;
+  a.play().catch(() => beep(ok));           // respaldo sintetizado
+}
+
+/* --- Respaldo sonoro (solo mientras no tengas los MP3 grabados) --- */
+let ctx;
+function ac(){ ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); return ctx; }
+function tonoDePrueba(id){
+  const i = GENEROS.findIndex(g => g.id === id);
+  const c = ac(), o = c.createOscillator(), v = c.createGain();
+  o.type = ["sine","square","triangle","sawtooth"][i % 4];
+  o.frequency.value = 220 + i * 55;
+  v.gain.value = 0.15;
+  o.connect(v).connect(c.destination);
+  o.start(); o.stop(c.currentTime + 1.2);
+}
+function beep(ok){
+  const c = ac(), o = c.createOscillator(), v = c.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(ok ? 660 : 300, c.currentTime);
+  o.frequency.linearRampToValueAtTime(ok ? 990 : 160, c.currentTime + 0.25);
+  v.gain.value = 0.2;
+  o.connect(v).connect(c.destination);
+  o.start(); o.stop(c.currentTime + 0.3);
+}
+
+/* =====================================================================
+   3) CONSTRUIR LAS TARJETAS
+   ===================================================================== */
+function crearCarta(g, alHacerClic){
+  const d = document.createElement("div");
+  d.className = "carta";
+  d.dataset.id = g.id;
+
+  const img = document.createElement("img");
+  img.src = "img/" + g.id + ".jpg";
+  img.alt = g.nombre;
+  // Si la imagen todavía no existe, se muestra el emoji en su lugar
+  img.addEventListener("error", () => {
+    const ph = document.createElement("div");
+    ph.className = "emoji";
+    ph.textContent = g.emoji;
+    img.replaceWith(ph);
+  });
+
+  const nom = document.createElement("div");
+  nom.className = "nombre";
+  nom.textContent = g.nombre;
+
+  d.append(img, nom);
+  d.addEventListener("click", () => alHacerClic(g, d));
+  return d;
+}
+
+const gridEnt = document.getElementById("gridEntrenamiento");
+const gridJue = document.getElementById("gridJuego");
+
+GENEROS.forEach(g => {
+  gridEnt.appendChild(crearCarta(g, (gen, carta) => reproducirGenero(gen.id, carta)));
+  gridJue.appendChild(crearCarta(g, (gen, carta) => responder(gen, carta)));
+});
+
+/* =====================================================================
+   4) PESTAÑAS
+   ===================================================================== */
+document.querySelectorAll(".tab").forEach(t => {
+  t.addEventListener("click", () => {
+    detenerTodo(); pararRonda(false);
+    document.querySelectorAll(".tab").forEach(x => x.classList.remove("activo"));
+    document.querySelectorAll(".panel").forEach(x => x.classList.remove("activo"));
+    t.classList.add("activo");
+    document.getElementById(t.dataset.panel).classList.add("activo");
+  });
+});
+
+/* =====================================================================
+   5) JUEGO: audio al azar + 10 segundos de cuenta regresiva
+   ===================================================================== */
+const TIEMPO = 10;
+let objetivo = null, restante = TIEMPO, intervalo = null, jugando = false;
+let aciertos = 0, errores = 0, rondas = 0;
+
+const elReloj   = document.getElementById("reloj");
+const elBarra   = document.getElementById("barra");
+const elMensaje = document.getElementById("mensaje");
+const btnJugar  = document.getElementById("btnJugar");
+const btnRepetir= document.getElementById("btnRepetir");
+
+function pintarReloj(){
+  elReloj.textContent = restante.toFixed(1).replace(".0","");
+  const pct = (restante / TIEMPO) * 100;
+  elBarra.style.width = pct + "%";
+  elBarra.style.background = pct > 50 ? "var(--ok)" : pct > 25 ? "var(--acc)" : "var(--bad)";
+}
+
+function nuevaRonda(){
+  limpiarCartas();
+  elMensaje.textContent = "";
+  elMensaje.className = "mensaje";
+  objetivo = GENEROS[Math.floor(Math.random() * GENEROS.length)];
+  jugando = true;
+  restante = TIEMPO;
+  pintarReloj();
+  btnJugar.textContent = "⏭ Saltear";
+  btnRepetir.disabled = false;
+  reproducirGenero(objetivo.id, null);
+
+  clearInterval(intervalo);
+  intervalo = setInterval(() => {
+    restante = Math.max(0, restante - 0.1);
+    pintarReloj();
+    if (restante <= 0) seAcaboElTiempo();
+  }, 100);
+}
+
+function pararRonda(mostrarBoton){
+  clearInterval(intervalo);
+  jugando = false;
+  btnRepetir.disabled = true;
+  btnJugar.textContent = mostrarBoton === false ? "▶ Empezar ronda" : "▶ Siguiente ronda";
+}
+
+function responder(gen, carta){
+  if (!jugando) return;
+  const acerto = gen.id === objetivo.id;
+  pararRonda(true);
+  detenerTodo();
+  rondas++;
+
+  if (acerto){
+    aciertos++;
+    carta.classList.add("correcta");
+    elMensaje.textContent = "¡Correcto! Era " + objetivo.nombre + " 🎉";
+    elMensaje.className = "mensaje ok";
+  } else {
+    errores++;
+    carta.classList.add("incorrecta");
+    marcarObjetivo();
+    elMensaje.textContent = "Ups… era " + objetivo.nombre;
+    elMensaje.className = "mensaje bad";
+  }
+  reproducirFeedback(acerto);
+  actualizarMarcador();
+}
+
+function seAcaboElTiempo(){
+  pararRonda(true);
+  detenerTodo();
+  rondas++; errores++;
+  marcarObjetivo();
+  elMensaje.textContent = "⏰ ¡Se acabó el tiempo! Era " + objetivo.nombre;
+  elMensaje.className = "mensaje bad";
+  reproducirFeedback(false);
+  actualizarMarcador();
+}
+
+function marcarObjetivo(){
+  const c = gridJue.querySelector('.carta[data-id="' + objetivo.id + '"]');
+  if (c) c.classList.add("correcta");
+}
+function limpiarCartas(){
+  gridJue.querySelectorAll(".carta").forEach(c =>
+    c.classList.remove("correcta","incorrecta","sonando"));
+}
+function actualizarMarcador(){
+  document.getElementById("aciertos").textContent = aciertos;
+  document.getElementById("errores").textContent  = errores;
+  document.getElementById("rondas").textContent   = rondas;
+}
+
+btnJugar.addEventListener("click", nuevaRonda);
+btnRepetir.addEventListener("click", () => { if (jugando) reproducirGenero(objetivo.id, null); });
+
+pintarReloj();
+</script>
+</body>
+</html>
